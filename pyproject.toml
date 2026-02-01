@@ -3,7 +3,7 @@ name = "28-07-2025-sign-language"
 version = "0.1.0"
 description = "A full walkthrough on training a sign language model."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10,<3.12"
 dependencies = [
     "albumentations>=2.0.8",
     "colorama>=0.4.6",
