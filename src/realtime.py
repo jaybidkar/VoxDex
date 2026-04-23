@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import time
 from collections import deque
 
@@ -19,6 +20,7 @@ DISPLAY_THRESHOLD = 0.20
 TEMPORAL_WINDOW = 10
 FPS_SMOOTH_FRAMES = 30
 WINDOW_NAME = "VoxDex - Live"
+DEFAULT_LABEL_COOLDOWN_SEC = 1.5
 
 
 class RollingFPS:
@@ -107,7 +109,21 @@ def draw_overlay(
         )
 
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run VoxDex real-time gesture detection.")
+    parser.add_argument(
+        "--label-cooldown-sec",
+        type=float,
+        default=DEFAULT_LABEL_COOLDOWN_SEC,
+        help=(
+            "Minimum seconds before appending the same stable label again to sentence_buffer "
+            f"(default: {DEFAULT_LABEL_COOLDOWN_SEC})."
+        ),
+    )
+    return parser.parse_args()
+
+
+def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
     logger = get_logger("realtime")
     detection_handler = DetectionHandler()
     logger.print_banner()
@@ -121,6 +137,9 @@ def main() -> None:
     )
     camera = CameraHandler(0)
     fps_counter = RollingFPS(FPS_SMOOTH_FRAMES)
+    sentence_buffer: list[str] = []
+    last_appended_label: str | None = None
+    last_appended_ts: float = 0.0
 
     frame_count = 0
     log_fps_start = time.time()
@@ -140,6 +159,16 @@ def main() -> None:
 
             stable_label, stable_conf = predictor.get_stable_prediction()
             instant = predictor.get_instant_hud_best()
+
+            if stable_label != "—":
+                now = time.perf_counter()
+                is_repeat_within_cooldown = (
+                    last_appended_label == stable_label and (now - last_appended_ts) < label_cooldown_sec
+                )
+                if not is_repeat_within_cooldown:
+                    sentence_buffer.append(stable_label)
+                    last_appended_label = stable_label
+                    last_appended_ts = now
 
             fps_counter.tick()
             fps_val = fps_counter.fps()
@@ -180,4 +209,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    args = _parse_args()
+    main(label_cooldown_sec=args.label_cooldown_sec)
