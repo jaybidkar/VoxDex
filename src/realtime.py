@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import queue
+import threading
 import time
 from collections import deque
 
 import cv2
+import pyttsx3
 
 from camera_handler import CameraHandler
 from gesture_predictor import GesturePredictor
@@ -40,6 +43,19 @@ class RollingFPS:
         if dt <= 0:
             return 0.0
         return (len(self._t) - 1) / dt
+
+
+def _tts_worker(engine: pyttsx3.Engine, speech_queue: queue.Queue[str | None]) -> None:
+    """Blocking pyttsx3 loop isolated from webcam loop."""
+    while True:
+        text = speech_queue.get()
+        try:
+            if text is None:
+                break
+            engine.say(text)
+            engine.runAndWait()
+        finally:
+            speech_queue.task_done()
 
 
 def draw_overlay(
@@ -137,9 +153,14 @@ def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
     )
     camera = CameraHandler(0)
     fps_counter = RollingFPS(FPS_SMOOTH_FRAMES)
+    tts_engine = pyttsx3.init()
+    speech_queue: queue.Queue[str | None] = queue.Queue()
+    tts_thread = threading.Thread(target=_tts_worker, args=(tts_engine, speech_queue), daemon=True)
+    tts_thread.start()
     sentence_buffer: list[str] = []
     last_appended_label: str | None = None
     last_appended_ts: float = 0.0
+    last_spoken_label: str | None = None
 
     frame_count = 0
     log_fps_start = time.time()
@@ -169,6 +190,17 @@ def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
                     sentence_buffer.append(stable_label)
                     last_appended_label = stable_label
                     last_appended_ts = now
+
+            has_valid_detection = stable_label != "—" and stable_conf > BOX_THRESHOLD
+            if has_valid_detection:
+                if stable_label != last_spoken_label:
+                    print(f"Speaking: {stable_label}")
+                    speech_queue.put(stable_label)
+                    last_spoken_label = stable_label
+            else:
+                if last_spoken_label is not None:
+                    print("No valid detection, reset speech state")
+                last_spoken_label = None
 
             fps_counter.tick()
             fps_val = fps_counter.fps()
@@ -204,6 +236,7 @@ def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
                 logger.realtime("Stopping.")
                 break
     finally:
+        speech_queue.put(None)
         camera.release()
         cv2.destroyAllWindows()
 
