@@ -100,7 +100,3 @@ uv run src/train.py
 ## Author
 
 Jay - VoxDex Developer
-
-## Demo
-
-Demo coming soon.
