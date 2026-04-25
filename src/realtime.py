@@ -23,6 +23,7 @@ DISPLAY_THRESHOLD = 0.20
 TEMPORAL_WINDOW = 10
 FPS_SMOOTH_FRAMES = 30
 WINDOW_NAME = "VoxDex - Live"
+APP_NAME = "VoxDex"
 DEFAULT_LABEL_COOLDOWN_SEC = 1.5
 
 
@@ -142,8 +143,17 @@ def _parse_args() -> argparse.Namespace:
 def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
     logger = get_logger("realtime")
     detection_handler = DetectionHandler()
-    logger.print_banner()
-    logger.realtime("Initializing VoxDex real-time detection...")
+    print(
+        f"""
+╔══════════════════════════════════════╗
+║              {APP_NAME.upper()}              ║
+║  AI Sign Language → Text → Speech    ║
+╚══════════════════════════════════════╝
+
+🚀 Initializing real-time pipeline...
+"""
+    )
+    logger.realtime("🚀 Starting VoxDex real-time detection...")
 
     predictor = GesturePredictor(
         CHECKPOINT,
@@ -165,7 +175,7 @@ def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
     frame_count = 0
     log_fps_start = time.time()
 
-    logger.realtime("Starting camera — press Q to quit.")
+    logger.realtime("📷 Camera started | Press 'Q' to quit")
 
     try:
         while True:
@@ -194,12 +204,12 @@ def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
             has_valid_detection = stable_label != "—" and stable_conf > BOX_THRESHOLD
             if has_valid_detection:
                 if stable_label != last_spoken_label:
-                    print(f"Speaking: {stable_label}")
+                    print(f"🔊 Speaking: {stable_label}")
                     speech_queue.put(stable_label)
                     last_spoken_label = stable_label
             else:
                 if last_spoken_label is not None:
-                    print("No valid detection, reset speech state")
+                    print("ℹ️ No valid detection | Speech state reset")
                 last_spoken_label = None
 
             fps_counter.tick()
@@ -233,7 +243,7 @@ def main(label_cooldown_sec: float = DEFAULT_LABEL_COOLDOWN_SEC) -> None:
 
             cv2.imshow(WINDOW_NAME, frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
-                logger.realtime("Stopping.")
+                logger.realtime("🛑 Stopping VoxDex real-time detection.")
                 break
     finally:
         speech_queue.put(None)
